@@ -59,3 +59,12 @@ export const deletePost = async (req, res) => {
     data.splice(postIndex, 1);
     await res.status(204).send();
 };
+
+export const searchPosts = (req, res) => {
+    const { q } = req.query;
+    if (!q) {
+        return res.status(400).json({ message: 'Query parameter is required' });
+    }
+    const filteredPosts = data.filter((post) => post.title.toLowerCase().includes(q.toLowerCase()));
+    res.json(filteredPosts);
+};
