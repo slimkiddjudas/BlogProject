@@ -1,5 +1,6 @@
 import express from 'express';
 import {getAllPosts, getPostById, addPost, updatePost, deletePost, searchPosts} from '../controllers/post.controller.js';
+import { authMiddleware } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
@@ -12,11 +13,14 @@ const validateIdParam = (req, res, next) => {
     next();
 };
 
+// Herkese açık rotalar
 router.get('/', getAllPosts);
 router.get('/search', searchPosts); // Özel route'ları daha spesifik parametrelere sahip route'lardan önce tanımlayın
 router.get('/:id', validateIdParam, getPostById); // ID doğrulama middleware'i ekledik
-router.post('/', addPost);
-router.put('/:id', validateIdParam, updatePost);
-router.delete('/:id', validateIdParam, deletePost);
+
+// Kimlik doğrulama gerektiren rotalar
+router.post('/', authMiddleware, addPost);
+router.put('/:id', [authMiddleware, validateIdParam], updatePost);
+router.delete('/:id', [authMiddleware, validateIdParam], deletePost);
 
 export default router;
