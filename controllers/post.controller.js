@@ -1,270 +1,232 @@
-import db from '../config/db.js';
-import { posts } from '../models/post.model.js';
-import { eq, desc, sql, ilike } from 'drizzle-orm';
+import models from '../models/index.js';
 
-export const getAllPosts = async (req, res) => {
+const { Post, User, Category, PostImage } = models;
+
+const addPost = async (req, res) => {
     try {
-        const { page = 1, limit = 10, sort = 'newest' } = req.query;
-        const pageNum = parseInt(page);
-        const limitNum = parseInt(limit);
-        const offset = (pageNum - 1) * limitNum;
-        
-        // Tüm postları sayısını al
-        const allPosts = await db.select().from(posts);
-        const totalPosts = allPosts.length;
-        
-        // Sıralama kriterini belirle
-        let query = db.select().from(posts);
-        
-        // Sıralama seçenekleri
-        if (sort === 'newest') {
-            query = query.orderBy(desc(posts.createdAt));
-        } else if (sort === 'oldest') {
-            query = query.orderBy(posts.createdAt);
-        } else if (sort === 'updated') {
-            query = query.orderBy(desc(posts.updatedAt));
-        } else if (sort === 'title') {
-            query = query.orderBy(posts.title);
+        const { title, content, categoryId } = req.body;
+        const { userId } = req.session;
+
+        // let image = null;
+        // let gallery = [];
+
+        // if (req.files && req.files.length > 0) {
+        //     image = 'uploads/' + req.files[0].filename;
+        //     if (req.files.length > 1) {
+        //         gallery = req.files.slice(1).map(file => ({
+        //             imageUrl: 'uploads/' + file.filename,
+        //             alt: file.originalname,
+        //             order: gallery.length
+        //         }));
+        //     }
+        // }
+
+        if (!title || !content || !categoryId) {
+            return res.status(400).json({ message: "Title, content, and category ID are required" });
         }
-        
-        // Pagination uygula
-        query = query.limit(limitNum).offset(offset);
-        
-        // Sorguyu çalıştır
-        const resultPosts = await query;
-            
-        res.json({
-            totalPosts,
-            currentPage: pageNum,
-            totalPages: Math.ceil(totalPosts / limitNum),
-            posts: resultPosts
+
+        const post = await Post.create({
+            title,
+            content,
+            // image: image,
+            userId,
+            categoryId,
+        });
+
+        res.status(201).json({ message: "Post created successfully", post });
+    } catch (error) {
+        return res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+}
+
+const getPosts = async (req, res) => {
+    try {
+        const { page = 1, limit = 10 } = req.query;
+        const offset = (page - 1) * limit;
+        const posts = await Post.findAndCountAll({
+            limit: parseInt(limit),
+            offset: parseInt(offset),
+            include: [
+                { model: User, as: 'writer', attributes: ['id', 'firstName', 'lastName'] },
+                { model: Category, as: 'category', attributes: ['id', 'name'] },
+                // { model: PostImage, as: 'gallery' }
+            ],
+            order: [['createdAt', 'DESC']]
+        });
+        res.status(200).json({
+            totalPosts: posts.count,
+            posts: posts.rows
         });
     } catch (error) {
-        console.error('Fetch posts error:', error);
-        res.status(500).json({ 
-            message: 'Error fetching posts', 
-            error: error.message 
-        });
+        return res.status(500).json({ message: "Internal server error", error: error.message });
     }
-};
+}
 
-export const getPostById = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const postId = parseInt(id);
-        
-        if (isNaN(postId)) {
-            return res.status(400).json({ message: 'Invalid post ID' });
-        }
-        
-        const post = await db
-            .select()
-            .from(posts)
-            .where(eq(posts.id, postId))
-            .limit(1);
-            
-        if (!post.length) {
-            return res.status(404).json({ message: 'Post not found' });
-        }
-        
-        res.json(post[0]);
-    } catch (error) {
-        console.error('Fetch post error:', error);
-        res.status(500).json({ 
-            message: 'Error fetching post', 
-            error: error.message 
-        });
-    }
-};
-
-export const addPost = async (req, res) => {
-    try {
-        const { title, content } = req.body;
-        
-        // Post içeriğini kontrol et
-        if (!title?.trim() || !content?.trim()) {
-            return res.status(400).json({ message: 'Title and content are required' });
-        }
-        
-        // Kullanıcı ID'sini al
-        const authorId = req.user?.id;
-        
-        if (!authorId) {
-            return res.status(401).json({ message: 'Authentication required' });
-        }
-        
-        const now = new Date();
-        
-        const newPost = await db.insert(posts)
-            .values({
-                title: title.trim(),
-                content: content.trim(),
-                authorId,
-                createdAt: now,
-                updatedAt: now
-            })
-            .returning();
-            
-        res.status(201).json(newPost[0]);
-    } catch (error) {
-        console.error('Create post error:', error);
-        res.status(500).json({ 
-            message: 'Error creating post', 
-            error: error.message 
-        });
-    }
-};
-
-export const updatePost = async (req, res) => {
+const getPostById = async (req, res) => {
     try {
         const { id } = req.params;
-        const postId = parseInt(id);
-        
-        if (isNaN(postId)) {
-            return res.status(400).json({ message: 'Invalid post ID' });
-        }
-        
-        const { title, content } = req.body;
-        
-        // Post içeriğini kontrol et
-        if (!title?.trim() || !content?.trim()) {
-            return res.status(400).json({ message: 'Title and content are required' });
-        }
-        
-        // Kullanıcı ID'sini al
-        const authorId = req.user?.id;
-        
-        if (!authorId) {
-            return res.status(401).json({ message: 'Authentication required' });
-        }
-        
-        // Post varlığını kontrol et
-        const existingPost = await db
-            .select()
-            .from(posts)
-            .where(eq(posts.id, postId))
-            .limit(1);
-            
-        if (!existingPost.length) {
-            return res.status(404).json({ message: 'Post not found' });
-        }
-        
-        // Kullanıcının post sahibi olup olmadığını kontrol et
-        if (existingPost[0].authorId !== authorId) {
-            return res.status(403).json({ message: 'Not authorized to update this post' });
-        }
-        
-        // Post'u güncelle, ancak createdAt değerini koruyarak
-        const createdAt = existingPost[0].createdAt;
-        
-        const updatedPost = await db.update(posts)
-            .set({
-                title: title.trim(),
-                content: content.trim(),
-                updatedAt: new Date(),
-                // Önemli: createdAt değerini güncelleme
-                createdAt: createdAt
-            })
-            .where(eq(posts.id, postId))
-            .returning();
-            
-        res.json(updatedPost[0]);
-    } catch (error) {
-        console.error('Update post error:', error);
-        res.status(500).json({ 
-            message: 'Error updating post', 
-            error: error.message 
+        const { userId } = req.session;
+        const post = await Post.findOne({
+            where: { id },
+            include: [
+                { model: User, as: 'writer', attributes: ['id', 'firstName', 'lastName'] },
+                { model: Category, as: 'category', attributes: ['id', 'name'] }
+                // { model: PostImage, as: 'gallery' }
+            ]
         });
-    }
-};
+        if (!post) {
+            return res.status(404).json({ message: "Post not found" });
+        }
+        await post.increment('viewCount');
 
-export const deletePost = async (req, res) => {
+        const isAuthor = post.userId === userId;
+        res.status(200).json({
+            post: {
+                ...post.toJSON(),
+                isAuthor
+            }
+        });
+    } catch (error) {
+        return res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+}
+
+const getPostBySlug = async (req, res) => {
+    try {
+        const { slug } = req.params;
+        const post = await Post.findOne({
+            where: { slug },
+            include: [
+                { model: User, as: 'writer', attributes: ['id', 'firstName', 'lastName'] },
+                { model: Category, as: 'category', attributes: ['id', 'name'] },
+                // { model: PostImage, as: 'gallery' }
+            ]
+        });
+        if (!post) {
+            return res.status(404).json({ message: "Post not found" });
+        }
+        // Increment view count
+        await post.increment('viewCount');
+        res.status(200).json({ post });
+    } catch (error) {
+        return res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+}
+
+const updatePost = async (req, res) => {
     try {
         const { id } = req.params;
-        const postId = parseInt(id);
-        
-        if (isNaN(postId)) {
-            return res.status(400).json({ message: 'Invalid post ID' });
-        }
-        
-        // Kullanıcı ID'sini al
-        const authorId = req.user?.id;
-        
-        if (!authorId) {
-            return res.status(401).json({ message: 'Authentication required' });
-        }
-        
-        // Post varlığını kontrol et
-        const existingPost = await db
-            .select()
-            .from(posts)
-            .where(eq(posts.id, postId))
-            .limit(1);
-            
-        if (!existingPost.length) {
-            return res.status(404).json({ message: 'Post not found' });
-        }
-        
-        // Kullanıcının post sahibi olup olmadığını kontrol et
-        if (existingPost[0].authorId !== authorId) {
-            return res.status(403).json({ message: 'Not authorized to delete this post' });
-        }
-        
-        // Post'u sil
-        await db.delete(posts)
-            .where(eq(posts.id, postId));
-            
-        res.status(204).send();
-    } catch (error) {
-        console.error('Delete post error:', error);
-        res.status(500).json({ 
-            message: 'Error deleting post', 
-            error: error.message 
-        });
-    }
-};
+        const { title, content, categoryId } = req.body;
+        const { userId } = req.session;
 
-export const searchPosts = async (req, res) => {
-    try {
-        const { q, page = 1, limit = 10 } = req.query;
-        
-        if (!q?.trim()) {
-            return res.status(400).json({ message: 'Search query is required' });
+        const post = await Post.findByPk(id);
+        if (!post) {
+            return res.status(404).json({ message: "Post not found" });
         }
-        
-        const pageNum = parseInt(page);
-        const limitNum = parseInt(limit);
-        const offset = (pageNum - 1) * limitNum;
-        const searchTerm = `%${q.trim()}%`;
-        
-        // Önce toplam eşleşen post sayısını bul
-        const allFilteredPosts = await db
-            .select()
-            .from(posts)
-            .where(ilike(posts.title, searchTerm));
-            
-        const totalFilteredPosts = allFilteredPosts.length;
-        
-        // Arama yap ve sırala
-        const filteredPosts = await db
-            .select()
-            .from(posts)
-            .where(ilike(posts.title, searchTerm))
-            .orderBy(desc(posts.createdAt))
-            .limit(limitNum)
-            .offset(offset);
-            
-        res.json({
-            totalPosts: totalFilteredPosts,
-            currentPage: pageNum, 
-            totalPages: Math.ceil(totalFilteredPosts / limitNum),
-            posts: filteredPosts
+
+        if (post.userId !== userId) {
+            return res.status(403).json({ message: "You are not authorized to update this post" });
+        }
+
+        if (title) post.title = title;
+        if (content) post.content = content;
+        if (categoryId) post.categoryId = categoryId;
+
+        if (req.files && req.files.length > 0) {
+            post.image = 'uploads/' + req.files[0].filename;
+            // Handle gallery images
+            const gallery = req.files.slice(1).map(file => ({
+                imageUrl: 'uploads/' + file.filename,
+                alt: file.originalname,
+                order: 0 // Default order, can be updated later
+            }));
+            await PostImage.bulkCreate(gallery);
+        }
+
+        await post.save();
+        res.status(200).json({ message: "Post updated successfully", post });
+    } catch (error) {
+        return res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+}
+
+const deletePost = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { userId } = req.session;
+
+        const post = await Post.findByPk(id);
+        if (!post) {
+            return res.status(404).json({ message: "Post not found" });
+        }
+
+        if (post.userId !== userId) {
+            return res.status(403).json({ message: "You are not authorized to delete this post" });
+        }
+
+        await post.destroy();
+        res.status(200).json({ message: "Post deleted successfully" });
+    } catch (error) {
+        return res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+}
+
+const getPostsByCategory = async (req, res) => {
+    try {
+        const { categoryId } = req.params;
+        const { page = 1, limit = 10 } = req.query;
+        const offset = (page - 1) * limit;
+
+        const posts = await Post.findAndCountAll({
+            where: { categoryId },
+            limit: parseInt(limit),
+            offset: parseInt(offset),
+            include: [
+                { model: User, as: 'writer', attributes: ['id', 'firstName', 'lastName'] },
+                { model: Category, as: 'category', attributes: ['id', 'name'] },
+                // { model: PostImage, as: 'gallery' }
+            ],
+            order: [['createdAt', 'DESC']]
+        });
+
+        res.status(200).json({
+            totalPosts: posts.count,
+            posts: posts.rows
         });
     } catch (error) {
-        console.error('Search posts error:', error);
-        res.status(500).json({ 
-            message: 'Error searching posts', 
-            error: error.message 
-        });
+        return res.status(500).json({ message: "Internal server error", error: error.message });
     }
+}
+
+const getPostByUser = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const posts = await Post.findAll({
+            where: { userId },
+            include: [
+                { model: User, as: 'writer', attributes: ['id', 'firstName', 'lastName'] },
+                { model: Category, as: 'category', attributes: ['id', 'name'] },
+                // { model: PostImage, as: 'gallery' }
+            ],
+            order: [['createdAt', 'DESC']]
+        });
+
+        res.status(200).json({
+            totalPosts: posts.length,
+            posts
+        });
+    } catch (error) {
+        return res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+}
+
+export {
+    addPost,
+    getPosts,
+    getPostById,
+    getPostBySlug,
+    updatePost,
+    deletePost,
+    getPostsByCategory,
+    getPostByUser
 };

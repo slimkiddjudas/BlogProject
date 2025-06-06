@@ -1,41 +1,40 @@
-import express from 'express';
-import post from './routes/post.route.js';
-import auth from './routes/auth.route.js';
-import { notFoundHandler, errorHandler } from './middlewares/errorMiddleware.js';
+import http from 'http';
+import app from './app.js';
+import db from './config/db.js';
+import { setupUserCountSocket } from './sockets/userCountSocket.js';
 import dotenv from 'dotenv';
+import models from './models/index.js';
 
-// .env dosyasını yükle
 dotenv.config();
 
-const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 
-// Veritabanı migrasyonlarını uygula
-// const migrateDb = async () => {
-//   try {
-//     console.log('Running migrations...');
-//     await migrate(db, { migrationsFolder: './migrations' });
-//     console.log('Migrations completed successfully');
-//   } catch (error) {
-//     console.error('Migration error:', error);
-//     process.exit(1);
-//   }
-// };
+async function startServer() {
+    try {
+        await db.sync({ alter: true });
+        console.log('Veritabanı bağlantısı başarılı.');
+        const server = http.createServer(app);
+        setupUserCountSocket(server);
 
-// // Veritabanı migrasyonlarını başlat
-// migrateDb();
+        const adminUser = await models.User.findOne({ where: { role: 'admin' } });
+        if (!adminUser) {
+            console.log('Admin kullanıcısı bulunamadı, yeni admin kullanıcısı oluşturuluyor...');
+            await models.User.create({
+                firstName: 'Admin',
+                lastName: 'User',
+                email: 'admin@mail.com',
+                password: 'admin123',
+                role: 'admin'
+            });
+        }
 
-// Middleware'ler
-app.use(express.json());
+        server.listen(PORT, () => {
+            console.log(`Sunucu ${PORT} portunda çalışıyor.`);
+        });
+    } catch (error) {
+        console.error('Sunucu başlatılırken hata oluştu:', error);
+        process.exit(1);
+    }
+}
 
-// Route'lar
-app.use("/post", post);
-app.use("/auth", auth);
-
-// Hata yakalama middleware'leri
-app.use(notFoundHandler);
-app.use(errorHandler);
-
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+startServer();

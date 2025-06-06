@@ -1,19 +1,27 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
-import dotenv from 'dotenv';
-
+import { Sequelize } from "sequelize";
+import dotenv from "dotenv";
 dotenv.config();
 
-// PostgreSQL bağlantı havuzu oluştur
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT ,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-});
+const db = new Sequelize(
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASSWORD,
+  {
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    logging: false,
+    dialect: "postgres",
+  }
+);
 
-// Drizzle ORM'i başlat
-const db = drizzle(pool);
+async function connectDB() {
+  try {
+    await db.authenticate();
+    console.log("PostgreSQL veritabanına başarıyla bağlanıldı.");
+  } catch (error) {
+    console.error("Veritabanına bağlanırken hata oluştu:", error);
+  }
+}
 
+connectDB();
 export default db;
