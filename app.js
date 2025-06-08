@@ -7,7 +7,11 @@ import { notFoundHandler, errorHandler } from './middlewares/errorMiddleware.js'
 import sessionConfig from './middlewares/sessionConfig.js';
 import { isAuth } from './middlewares/authMiddleware.js';
 import { csrfProtection } from './middlewares/csrf.js';
-import { getActiveUsers } from './sockets/userCountSocket.js';
+import path from 'path';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,15 +27,11 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.COOKIE_SECRET));
 app.use(sessionConfig);
 
+app.use("/static/images", express.static(path.join(__dirname, 'uploads')));
+
 app.get('/api/csrf-token', isAuth, csrfProtection, (req, res) => {
   res.json({ csrfToken: req.csrfToken() });
 });
-
-app.get('/api/active-users', (req, res) => {
-    res.json({ activeUsers: getActiveUsers() });
-});
-
-app.use('/static/', express.static('uploads'));
 
 app.use('/api', routes);
 

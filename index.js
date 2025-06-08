@@ -1,7 +1,7 @@
 import http from 'http';
 import app from './app.js';
 import db from './config/db.js';
-import { setupUserCountSocket } from './sockets/userCountSocket.js';
+import { userCountSocket } from './sockets/userCountSocket.js';
 import dotenv from 'dotenv';
 import models from './models/index.js';
 
@@ -14,7 +14,7 @@ async function startServer() {
         await db.sync({ alter: true });
         console.log('Veritabanı bağlantısı başarılı.');
         const server = http.createServer(app);
-        setupUserCountSocket(server);
+        userCountSocket(server);
 
         const adminUser = await models.User.findOne({ where: { role: 'admin' } });
         if (!adminUser) {

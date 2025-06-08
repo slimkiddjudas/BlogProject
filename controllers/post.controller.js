@@ -1,25 +1,17 @@
 import models from '../models/index.js';
 
-const { Post, User, Category, PostImage } = models;
+const { Post, User, Category } = models;
 
 const addPost = async (req, res) => {
     try {
         const { title, content, categoryId } = req.body;
         const { userId } = req.session;
 
-        // let image = null;
-        // let gallery = [];
+        let image = null;
 
-        // if (req.files && req.files.length > 0) {
-        //     image = 'uploads/' + req.files[0].filename;
-        //     if (req.files.length > 1) {
-        //         gallery = req.files.slice(1).map(file => ({
-        //             imageUrl: 'uploads/' + file.filename,
-        //             alt: file.originalname,
-        //             order: gallery.length
-        //         }));
-        //     }
-        // }
+        if (req.file) {
+            image = req.file.path;
+        }
 
         if (!title || !content || !categoryId) {
             return res.status(400).json({ message: "Title, content, and category ID are required" });
@@ -28,7 +20,7 @@ const addPost = async (req, res) => {
         const post = await Post.create({
             title,
             content,
-            // image: image,
+            image: image,
             userId,
             categoryId,
         });
@@ -49,7 +41,6 @@ const getPosts = async (req, res) => {
             include: [
                 { model: User, as: 'writer', attributes: ['id', 'firstName', 'lastName'] },
                 { model: Category, as: 'category', attributes: ['id', 'name'] },
-                // { model: PostImage, as: 'gallery' }
             ],
             order: [['createdAt', 'DESC']]
         });
@@ -71,7 +62,6 @@ const getPostById = async (req, res) => {
             include: [
                 { model: User, as: 'writer', attributes: ['id', 'firstName', 'lastName'] },
                 { model: Category, as: 'category', attributes: ['id', 'name'] }
-                // { model: PostImage, as: 'gallery' }
             ]
         });
         if (!post) {
@@ -99,7 +89,6 @@ const getPostBySlug = async (req, res) => {
             include: [
                 { model: User, as: 'writer', attributes: ['id', 'firstName', 'lastName'] },
                 { model: Category, as: 'category', attributes: ['id', 'name'] },
-                // { model: PostImage, as: 'gallery' }
             ]
         });
         if (!post) {
@@ -131,17 +120,6 @@ const updatePost = async (req, res) => {
         if (title) post.title = title;
         if (content) post.content = content;
         if (categoryId) post.categoryId = categoryId;
-
-        if (req.files && req.files.length > 0) {
-            post.image = 'uploads/' + req.files[0].filename;
-            // Handle gallery images
-            const gallery = req.files.slice(1).map(file => ({
-                imageUrl: 'uploads/' + file.filename,
-                alt: file.originalname,
-                order: 0 // Default order, can be updated later
-            }));
-            await PostImage.bulkCreate(gallery);
-        }
 
         await post.save();
         res.status(200).json({ message: "Post updated successfully", post });
@@ -184,7 +162,6 @@ const getPostsByCategory = async (req, res) => {
             include: [
                 { model: User, as: 'writer', attributes: ['id', 'firstName', 'lastName'] },
                 { model: Category, as: 'category', attributes: ['id', 'name'] },
-                // { model: PostImage, as: 'gallery' }
             ],
             order: [['createdAt', 'DESC']]
         });
@@ -206,7 +183,6 @@ const getPostByUser = async (req, res) => {
             include: [
                 { model: User, as: 'writer', attributes: ['id', 'firstName', 'lastName'] },
                 { model: Category, as: 'category', attributes: ['id', 'name'] },
-                // { model: PostImage, as: 'gallery' }
             ],
             order: [['createdAt', 'DESC']]
         });

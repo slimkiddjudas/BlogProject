@@ -2,7 +2,6 @@ import User from './user.js';
 import Post from './post.js';
 import Category from './category.js';
 import Comment from './comment.js';
-import PostImage from './post-image.js';
 import Visitor from './visitor.js';
 
 const models = {
@@ -10,7 +9,6 @@ const models = {
     Post,
     Category,
     Comment,
-    PostImage,
     Visitor,
 };
 

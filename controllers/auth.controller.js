@@ -110,9 +110,72 @@ const getCurrentUser = async (req, res) => {
     }
 };
 
+const changePassword = async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({ message: "Old password and new password are required" });
+        }
+
+        const user = await User.findByPk(req.session.userId);
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const isValidPassword = user.verifyPassword(oldPassword);
+        if (!isValidPassword) {
+            return res.status(401).json({ message: "Invalid old password" });
+        }
+
+        if (newPassword === oldPassword) {
+            return res.status(400).json({ message: "New password cannot be the same as old password" });
+        }
+
+        user.password = newPassword;
+        await user.save();
+
+        return res.status(200).json({ message: "Password changed successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+};
+
+const updateUserProfile = async (req, res) => {
+    try {
+        const { firstName, lastName, email } = req.body;
+
+        if (!firstName || !lastName || !email) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+
+        const user = await User.findByPk(req.session.userId);
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        user.firstName = firstName;
+        user.lastName = lastName;
+        user.email = email;
+        await user.save();
+
+        return res.status(200).json({ message: "Profile updated successfully", user: {
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            role: user.role,
+        }});
+    } catch (error) {
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+};
+
 export {
     register,
     login,
     logout,
     getCurrentUser,
+    changePassword,
+    updateUserProfile
 };
