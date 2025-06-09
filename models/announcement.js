@@ -20,7 +20,7 @@ const Announcement = db.define("Announcement", {
   },
   slug: {
     type: DataTypes.STRING,
-    allowNull: false,
+    allowNull: true,
     unique: true,
   },
 },

@@ -5,7 +5,7 @@ import categoryRouter from './category.route.js';
 import commentRouter from './comment.route.js';
 import sitemapRouter from './sitemap.route.js';
 import galleryRouter from './gallery.route.js';
-import announcemetRouter from './announcement.route.js';
+import announcementRouter from './announcement.route.js';
 
 const router = express.Router();
 

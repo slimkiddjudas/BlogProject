@@ -107,7 +107,7 @@ const getAnnouncementBySlug = async (req, res) => {
     }
 };
 
-export default {
+export {
     addAnnouncement,
     getAnnouncements,
     updateAnnouncement,
