@@ -4,6 +4,7 @@ import Category from './category.js';
 import Comment from './comment.js';
 import Visitor from './visitor.js';
 import Gallery from './gallery.js';
+import Announcement from './announcement.js';
 
 const models = {
     User,
@@ -12,6 +13,7 @@ const models = {
     Comment,
     Visitor,
     Gallery,
+    Announcement,
 };
 
 Object.values(models).forEach(model => {

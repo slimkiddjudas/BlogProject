@@ -51,6 +51,9 @@ const Post = db.define("Post", {
             post.createdAt = new Date();
         },
         beforeUpdate: (post, options) => {
+            if (post.title) {
+                post.slug = slugify(post.title, { lower: true, strict: true });
+            }
             post.updatedAt = new Date();
         }
     },

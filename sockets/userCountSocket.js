@@ -17,7 +17,6 @@ export const userCountSocket = (server) => {
         socket.on("userLogin", (userId) => {
             if (!userId) return;
 
-            // Eski bağlantıyı temizle
             const oldUserId = socketToUser.get(socket.id);
             if (oldUserId) {
                 removeSocketFromUser(oldUserId, socket.id);
@@ -46,7 +45,6 @@ export const userCountSocket = (server) => {
         });
     });
 
-    // Yardımcı fonksiyonlar
     function removeSocketFromUser(userId, socketId) {
         if (activeUserSockets.has(userId)) {
             activeUserSockets.get(userId).delete(socketId);
@@ -63,7 +61,6 @@ export const userCountSocket = (server) => {
         console.log(`Active users count: ${count}`);
     }
 
-    // Aktif kullanıcı sayısını dışa aktar
     function getActiveUserCount() {
         return activeUserSockets.size;
     }

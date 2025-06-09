@@ -5,6 +5,7 @@ import categoryRouter from './category.route.js';
 import commentRouter from './comment.route.js';
 import sitemapRouter from './sitemap.route.js';
 import galleryRouter from './gallery.route.js';
+import announcemetRouter from './announcement.route.js';
 
 const router = express.Router();
 
@@ -14,6 +15,7 @@ router.use('/categories', categoryRouter);
 router.use('/comments', commentRouter);
 router.use('/sitemap', sitemapRouter);
 router.use('/gallery', galleryRouter);
+router.use('/announcements', announcementRouter);
 
 router.get('/', (req, res) => {
     res.send('API is running');
