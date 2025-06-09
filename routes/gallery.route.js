@@ -6,7 +6,7 @@ import upload from '../middlewares/fileUploadMiddleware.js';
 const router = express.Router();
 
 router.post('/', isAuth, isAdmin, upload.single('image'), addGalleryItem);
-router.get('/', isAuth, isAdmin, getGalleryItems);
+router.get('/', isAuth, getGalleryItems);
 router.delete('/:id', isAuth, isAdmin, deleteGalleryItem);
 
 export default router;
