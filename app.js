@@ -29,6 +29,11 @@ app.use(sessionConfig);
 
 app.use("/static/images", express.static(path.join(__dirname, 'uploads')));
 
+// Statik sitemap dosyasını serve et
+app.get('/sitemap.xml', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'sitemap.xml'));
+});
+
 app.get('/api/csrf-token', isAuth, csrfProtection, (req, res) => {
   res.json({ csrfToken: req.csrfToken() });
 });
