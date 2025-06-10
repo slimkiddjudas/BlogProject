@@ -106,17 +106,12 @@ const updatePost = async (req, res) => {
     try {
         const { id } = req.params;
         const { title, content, categoryId } = req.body;
-        const { userId } = req.session;
 
         const post = await Post.findByPk(id);
         if (!post) {
             return res.status(404).json({ message: "Post not found" });
         }
-
-        if (post.userId !== userId) {
-            return res.status(403).json({ message: "You are not authorized to update this post" });
-        }
-
+        
         if (title) post.title = title;
         if (content) post.content = content;
         if (categoryId) post.categoryId = categoryId;
@@ -136,10 +131,6 @@ const deletePost = async (req, res) => {
         const post = await Post.findByPk(id);
         if (!post) {
             return res.status(404).json({ message: "Post not found" });
-        }
-
-        if (post.userId !== userId) {
-            return res.status(403).json({ message: "You are not authorized to delete this post" });
         }
 
         await post.destroy();

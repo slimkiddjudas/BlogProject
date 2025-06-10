@@ -41,10 +41,12 @@ Comment.associate = (models) => {
     Comment.belongsTo(models.User, {
         foreignKey: "userId",
         as: "writer",
+        onDelete: "CASCADE",
     });
     Comment.belongsTo(models.Post, {
         foreignKey: "postId",
         as: "post",
+        onDelete: "CASCADE",
     });
 };
 

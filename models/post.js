@@ -64,10 +64,17 @@ Post.associate = (models) => {
     Post.belongsTo(models.User, {
         foreignKey: "userId",
         as: "writer",
+        onDelete: "CASCADE",
     });
     Post.belongsTo(models.Category, {
         foreignKey: "categoryId",
         as: "category",
+        onDelete: "CASCADE",
+    });
+    Post.hasMany(models.Comment, {
+        foreignKey: "postId",
+        as: "comments",
+        onDelete: "CASCADE",
     });
 };
 

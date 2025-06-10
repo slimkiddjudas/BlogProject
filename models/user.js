@@ -58,6 +58,12 @@ User.associate = (models) => {
   User.hasMany(models.Post, {
     foreignKey: "userId",
     as: "posts",
+    onDelete: "CASCADE",
+  });
+  User.hasMany(models.Comment, {
+    foreignKey: "userId",
+    as: "comments",
+    onDelete: "CASCADE",
   });
 };
 

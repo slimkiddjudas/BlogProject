@@ -6,12 +6,12 @@ import { csrfProtection } from '../middlewares/csrf.js';
 
 const router = express.Router();
 
-router.post('/', isAuth, isWriter, csrfProtection, upload.single('image'), addPost);
+router.post('/', isAuth, isWriter, upload.single('image'), csrfProtection, addPost);
 router.get('/', isAuth, getPosts);
 router.get('/user/:userId', isAuth, getPostByUser);
 router.get('/:id', isAuth, getPostById);
 router.get('/slug/:slug', isAuth, getPostBySlug);
-router.put('/:id', isAuth, isWriter, upload.single('image'), csrfProtection, updatePost);
+router.put('/:id', isAuth, isWriter, csrfProtection, updatePost);
 router.delete('/:id', isAuth, isWriter, csrfProtection, deletePost);
 router.get('/category/:categoryId', isAuth, getPostsByCategory);
 

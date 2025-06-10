@@ -13,7 +13,7 @@ const isAdmin = (req, res, next) => {
 }
 
 const isWriter = (req, res, next) => {
-    if (req.session && (req.session.userRole === 'writer'  || req.session.userRole === 'admin')) {
+    if (req.session && (req.session.userRole === 'writer' || req.session.userRole === 'admin')) {
         return next();
     }
     return res.status(403).json({ message: "Forbidden" });
