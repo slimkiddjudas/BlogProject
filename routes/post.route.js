@@ -1,26 +1,18 @@
 import express from 'express';
-import {getAllPosts, getPostById, addPost, updatePost, deletePost, searchPosts} from '../controllers/post.controller.js';
-import { authMiddleware } from '../middlewares/authMiddleware.js';
+import { addPost, getPosts, getPostById, getPostBySlug, updatePost, deletePost, getPostsByCategory, getPostByUser} from '../controllers/post.controller.js';
+import { isAuth, isWriter } from '../middlewares/authMiddleware.js';
+import upload from '../middlewares/fileUploadMiddleware.js';
+import { csrfProtection } from '../middlewares/csrf.js';
 
 const router = express.Router();
 
-// ID doğrulama middleware'i
-const validateIdParam = (req, res, next) => {
-    const id = req.params.id;
-    if (!/^\d+$/.test(id)) {
-        return res.status(400).json({ message: 'Invalid ID format. ID must be an integer.' });
-    }
-    next();
-};
-
-// Herkese açık rotalar
-router.get('/', getAllPosts);
-router.get('/search', searchPosts); // Özel route'ları daha spesifik parametrelere sahip route'lardan önce tanımlayın
-router.get('/:id', validateIdParam, getPostById); // ID doğrulama middleware'i ekledik
-
-// Kimlik doğrulama gerektiren rotalar
-router.post('/', authMiddleware, addPost);
-router.put('/:id', [authMiddleware, validateIdParam], updatePost);
-router.delete('/:id', [authMiddleware, validateIdParam], deletePost);
+router.post('/', isAuth, isWriter, upload.single('image'), csrfProtection, addPost);
+router.get('/', isAuth, getPosts);
+router.get('/user/:userId', isAuth, getPostByUser);
+router.get('/:id', isAuth, getPostById);
+router.get('/slug/:slug', isAuth, getPostBySlug);
+router.put('/:id', isAuth, isWriter, csrfProtection, updatePost);
+router.delete('/:id', isAuth, isWriter, csrfProtection, deletePost);
+router.get('/category/:categoryId', isAuth, getPostsByCategory);
 
 export default router;

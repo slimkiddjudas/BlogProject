@@ -1,364 +1,223 @@
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import db from '../config/db.js';
-import { users } from '../models/user.model.js';
-import { eq, or } from 'drizzle-orm';
+import models from '../models/index.js';
+const { User, Category, Comment, Post } = models;
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const TOKEN_EXPIRES = process.env.TOKEN_EXPIRES;
-
-// Token oluşturma fonksiyonu
-const generateToken = (user) => {
-  return jwt.sign(
-    { id: user.id, username: user.username },
-    JWT_SECRET,
-    { expiresIn: TOKEN_EXPIRES }
-  );
-};
-
-// Şifre olmadan kullanıcı nesnesini döndüren yardımcı fonksiyon
-const getUserWithoutPassword = (user) => {
-  const { password, ...userWithoutPassword } = user;
-  return userWithoutPassword;
-};
-
-export const register = async (req, res) => {
+const register = async (req, res) => {
     try {
-        const { username, email, password } = req.body;
+        const { firstName, lastName, email, password } = req.body;
 
-        // Gerekli alanların varlığını ve formatını kontrol et
-        if (!username?.trim() || !email?.trim() || !password) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'All fields are required' 
-            });
-        }
-        
-        // Email formatını kontrol et
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid email format'
-            });
-        }
-        
-        // Kullanıcı adı ve şifre uzunluğunu kontrol et
-        if (username.length < 3 || username.length > 50) {
-            return res.status(400).json({
-                success: false,
-                message: 'Username must be between 3 and 50 characters'
-            });
-        }
-        
-        if (password.length < 6) {
-            return res.status(400).json({
-                success: false,
-                message: 'Password must be at least 6 characters'
-            });
+        if (!firstName || !lastName || !email || !password) {
+            return res.status(400).json({ message: "All fields are required" });
         }
 
-        // Kullanıcı adı veya email zaten kullanılıyor mu kontrol et
-        const existingUser = await db.select()
-            .from(users)
-            .where(or(
-                eq(users.username, username.trim()),
-                eq(users.email, email.trim())
-            ))
-            .limit(1);
-
-        if (existingUser.length > 0) {
-            return res.status(409).json({ 
-                success: false, 
-                message: 'Username or email already exists' 
-            });
+        // Check if user already exists
+        const existingUser = await User.findOne({ where: { email } });
+        if (existingUser) {
+            return res.status(400).json({ message: "User already exists" });
         }
 
-        // Şifreyi hash'le
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-        
-        const now = new Date();
-
-        // Yeni kullanıcı oluştur
-        const newUser = await db.insert(users)
-            .values({
-                username: username.trim(),
-                email: email.trim(),
-                password: hashedPassword,
-                createdAt: now,
-                updatedAt: now
-            })
-            .returning();
-
-        // JWT token oluştur
-        const token = generateToken(newUser[0]);
-
-        // Yanıt gönder (şifreyi hariç tut)
-        const userWithoutPassword = getUserWithoutPassword(newUser[0]);
-        
-        res.status(201).json({
-            success: true,
-            message: 'User registered successfully',
-            user: userWithoutPassword,
-            token
+        // Create new user
+        const newUser = await User.create({
+            firstName,
+            lastName,
+            email,
+            password,
         });
+
+        return res.status(201).json({ message: "User registered successfully", user: {
+            id: newUser.id,
+            firstName: newUser.firstName,
+            lastName: newUser.lastName,
+            email: newUser.email,
+            role: newUser.role,
+        }});
     } catch (error) {
-        console.error('Registration error:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Server error during registration',
-            error: error.message 
-        });
+        return res.status(500).json({ message: "Internal server error", error: error.message });
     }
 };
 
-export const login = async (req, res) => {
+const login = async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { email, password, rememberMe } = req.body;
 
-        // Gerekli alanları kontrol et
-        if (!username?.trim() || !password) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Username and password are required' 
-            });
+        if (!email || !password) {
+            return res.status(400).json({ message: "Email and password are required" });
         }
 
-        // Kullanıcıyı bul
-        const user = await db.select()
-            .from(users)
-            .where(eq(users.username, username.trim()))
-            .limit(1);
-
-        if (user.length === 0) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Invalid credentials' 
-            });
+        const user = await User.findOne({ where: { email } });
+        if (!user) {
+            return res.status(401).json({ message: "Invalid email or password" });
         }
 
-        // Şifreyi kontrol et
-        const isPasswordValid = await bcrypt.compare(password, user[0].password);
-        
-        if (!isPasswordValid) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Invalid credentials' 
-            });
+        const isValidPassword = user.verifyPassword(password);
+        if (!isValidPassword) {
+            return res.status(401).json({ message: "Invalid email or password" });
         }
 
-        // JWT token oluştur
-        const token = generateToken(user[0]);
+        req.session.userId = user.id;
+        req.session.userRole = user.role;
+        req.session.fullName = user.getFullName();
 
-        // Son giriş tarihini güncelle
-        await db.update(users)
-            .set({ updatedAt: new Date() })
-            .where(eq(users.id, user[0].id));
+        if (rememberMe) {
+            req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 gün
+        }
 
-        // Yanıt gönder (şifreyi hariç tut)
-        const userWithoutPassword = getUserWithoutPassword(user[0]);
-        
-        res.json({
-            success: true,
-            message: 'Login successful',
-            user: userWithoutPassword,
-            token
-        });
+        return res.status(200).json({ message: "Login successful", user: {
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            role: user.role,
+        }});
     } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Server error during login',
-            error: error.message 
-        });
+        return res.status(500).json({ message: "Internal server error", error: error.message });
     }
 };
 
-export const getProfile = async (req, res) => {
+const logout = (req, res) => {
+    req.session.destroy((err) => {
+        if (err) {
+            return res.status(500).json({ message: "Internal server error", error: err.message });
+        }
+        res.clearCookie("connect.sid");
+        res.status(200).json({ message: "Logout successful" });
+    });
+};
+
+const getCurrentUser = async (req, res) => {
     try {
-        const userId = req.user?.id;
+        if (!req.session.userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const user = await User.findByPk(req.session.userId, {
+            attributes: ['id', 'firstName', 'lastName', 'email', 'role'],
+        });
         
-        if (!userId) {
-            return res.status(401).json({
-                success: false,
-                message: 'Authentication required'
-            });
+        if (!user) {
+            req.session.destroy();
+            return res.status(401).json({ message: "User not found" });
         }
         
-        // Kullanıcıyı veritabanından getir
-        const user = await db.select()
-            .from(users)
-            .where(eq(users.id, userId))
-            .limit(1);
-        
-        if (user.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found'
-            });
-        }
-        
-        // Şifreyi çıkar
-        const userWithoutPassword = getUserWithoutPassword(user[0]);
-        
-        res.json({
-            success: true,
-            user: userWithoutPassword
+        return res.status(200).json({
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            role: user.role,
         });
     } catch (error) {
-        console.error('Profile fetch error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error fetching profile',
-            error: error.message
-        });
+        res.status(500).json({ message: "Internal server error", error: error.message });
     }
 };
 
-export const changePassword = async (req, res) => {
+const changePassword = async (req, res) => {
     try {
-        const userId = req.user?.id;
-        
-        if (!userId) {
-            return res.status(401).json({
-                success: false,
-                message: 'Authentication required'
-            });
+        const { oldPassword, newPassword } = req.body;
+
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({ message: "Old password and new password are required" });
         }
-        
-        const { currentPassword, newPassword } = req.body;
-        
-        if (!currentPassword || !newPassword) {
-            return res.status(400).json({
-                success: false,
-                message: 'Current password and new password are required'
-            });
+
+        const user = await User.findByPk(req.session.userId);
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized" });
         }
-        
-        if (newPassword.length < 6) {
-            return res.status(400).json({
-                success: false,
-                message: 'New password must be at least 6 characters'
-            });
+
+        const isValidPassword = user.verifyPassword(oldPassword);
+        if (!isValidPassword) {
+            return res.status(401).json({ message: "Invalid old password" });
         }
-        
-        // Kullanıcıyı veritabanından getir
-        const user = await db.select()
-            .from(users)
-            .where(eq(users.id, userId))
-            .limit(1);
-        
-        if (user.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found'
-            });
+
+        if (newPassword === oldPassword) {
+            return res.status(400).json({ message: "New password cannot be the same as old password" });
         }
-        
-        // Mevcut şifreyi kontrol et
-        const isPasswordValid = await bcrypt.compare(currentPassword, user[0].password);
-        
-        if (!isPasswordValid) {
-            return res.status(401).json({
-                success: false,
-                message: 'Current password is incorrect'
-            });
-        }
-        
-        // Yeni şifreyi hash'le
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(newPassword, salt);
-        
-        // Şifreyi güncelle
-        await db.update(users)
-            .set({ 
-                password: hashedPassword,
-                updatedAt: new Date()
-            })
-            .where(eq(users.id, userId));
-        
-        res.json({
-            success: true,
-            message: 'Password changed successfully'
-        });
+
+        user.password = newPassword;
+        await user.save();
+
+        return res.status(200).json({ message: "Password changed successfully" });
     } catch (error) {
-        console.error('Password change error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error changing password',
-            error: error.message
-        });
+        res.status(500).json({ message: "Internal server error", error: error.message });
     }
 };
 
-export const updateProfile = async (req, res) => {
+const updateUserProfile = async (req, res) => {
     try {
-        const userId = req.user?.id;
-        
-        if (!userId) {
-            return res.status(401).json({
-                success: false,
-                message: 'Authentication required'
-            });
+        const { firstName, lastName, email } = req.body;
+
+        if (!firstName || !lastName || !email) {
+            return res.status(400).json({ message: "All fields are required" });
         }
-        
-        const { email } = req.body;
-        
-        if (!email?.trim()) {
-            return res.status(400).json({
-                success: false,
-                message: 'Email is required'
-            });
+
+        const user = await User.findByPk(req.session.userId);
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized" });
         }
-        
-        // Email formatını kontrol et
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid email format'
-            });
-        }
-        
-        // Email zaten kullanılıyor mu kontrol et (kendisi hariç)
-        const existingUser = await db.select()
-            .from(users)
-            .where(
-                eq(users.email, email.trim())
-            )
-            .limit(1);
-        
-        if (existingUser.length > 0 && existingUser[0].id !== userId) {
-            return res.status(409).json({
-                success: false,
-                message: 'Email already in use'
-            });
-        }
-        
-        // Profili güncelle
-        const updatedUser = await db.update(users)
-            .set({ 
-                email: email.trim(),
-                updatedAt: new Date()
-            })
-            .where(eq(users.id, userId))
-            .returning();
-        
-        // Şifreyi çıkar
-        const userWithoutPassword = getUserWithoutPassword(updatedUser[0]);
-        
-        res.json({
-            success: true,
-            message: 'Profile updated successfully',
-            user: userWithoutPassword
-        });
+
+        user.firstName = firstName;
+        user.lastName = lastName;
+        user.email = email;
+        await user.save();
+
+        return res.status(200).json({ message: "Profile updated successfully", user: {
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            role: user.role,
+        }});
     } catch (error) {
-        console.error('Profile update error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error updating profile',
-            error: error.message
-        });
+        res.status(500).json({ message: "Internal server error", error: error.message });
     }
+};
+
+const changeUserRole = async (req, res) => {
+    try {
+        const { userId, newRole } = req.body;
+
+        if (!userId || !newRole) {
+            return res.status(400).json({ message: "User ID and new role are required" });
+        }
+
+        const user = await User.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        user.role = newRole;
+        await user.save();
+
+        return res.status(200).json({ message: "User role updated successfully", user: {
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            role: user.role,
+        }});
+    } catch (error) {
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+};
+
+const getAllUsers = async (req, res) => {
+    try {
+        const users = await User.findAll({
+            attributes: ['id', 'firstName', 'lastName', 'email', 'role'],
+        });
+
+        return res.status(200).json(users);
+    } catch (error) {
+        return res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+};
+
+export {
+    register,
+    login,
+    logout,
+    getCurrentUser,
+    changePassword,
+    updateUserProfile,
+    changeUserRole,
+    getAllUsers
 };

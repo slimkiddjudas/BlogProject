@@ -1,0 +1,82 @@
+import { DataTypes } from "sequelize";
+import db from "../config/db.js";
+import slugify from "slugify";
+
+const Post = db.define("Post", {
+    title: {
+        type: DataTypes.STRING,
+        allowNull: false,
+    },
+    image: {
+        type: DataTypes.STRING,
+        allowNull: false,
+    },
+    content: {
+        type: DataTypes.TEXT,
+        allowNull: false,
+    },
+    viewCount: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        allowNull: false,
+        field: "view_count",
+    },
+    slug: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: true,
+    },
+    userId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+            model: "Users",
+            key: "id",
+        }
+    },
+    categoryId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+            model: "Categories",
+            key: "id",
+        }
+    },
+},
+{
+    hooks: {
+        beforeCreate: (post, options) => {
+            if (post.title) {
+                post.slug = slugify(post.title, { lower: true, strict: true });
+            }
+            post.createdAt = new Date();
+        },
+        beforeUpdate: (post, options) => {
+            if (post.title) {
+                post.slug = slugify(post.title, { lower: true, strict: true });
+            }
+            post.updatedAt = new Date();
+        }
+    },
+});
+
+// Associations
+Post.associate = (models) => {
+    Post.belongsTo(models.User, {
+        foreignKey: "userId",
+        as: "writer",
+        onDelete: "CASCADE",
+    });
+    Post.belongsTo(models.Category, {
+        foreignKey: "categoryId",
+        as: "category",
+        onDelete: "CASCADE",
+    });
+    Post.hasMany(models.Comment, {
+        foreignKey: "postId",
+        as: "comments",
+        onDelete: "CASCADE",
+    });
+};
+
+export default Post;
