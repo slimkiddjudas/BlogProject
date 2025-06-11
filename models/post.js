@@ -24,6 +24,7 @@ const Post = db.define("Post", {
     slug: {
         type: DataTypes.STRING,
         allowNull: true,
+        unique: true,
     },
     userId: {
         type: DataTypes.INTEGER,
