@@ -314,10 +314,6 @@ The API follows RESTful conventions with consistent response formats:
 4. Push to the branch (`git push origin feature/new-feature`)
 5. Create a Pull Request
 
-## 📄 License
-
-This project is licensed under the ISC License - see the package.json file for details.
-
 ## 🐛 Known Issues
 
 - File upload size limits may need adjustment for large images
